@@ -61,32 +61,6 @@ const MISSION_TYPES = [
   "DPEG"                           // 40
 ];
 
-// Champs de Table_Z_Conclusions.xml → diagnostics lisibles
-const CONCLUSION_FIELDS = [
-  { tag: "LiColonne_Variable_resume_conclusion_termites",        label: "Termites" },
-  { tag: "LiColonne_Variable_resume_conclusion_autres_parasites",label: "Parasites" },
-  { tag: "LiColonne_Variable_resume_conclusion_amiante",         label: "Amiante" },
-  { tag: "LiColonne_Variable_resume_conclusion_carrez",          label: "Loi Carrez" },
-  { tag: "LiColonne_Variable_resume_conclusion_crep",            label: "Plomb (CREP)" },
-  { tag: "LiColonne_Variable_resume_conclusion_dpe",             label: "DPE" },
-  { tag: "LiColonne_Variable_resume_conclusion_gaz",             label: "Gaz" },
-  { tag: "LiColonne_Variable_resume_conclusion_elec",            label: "Électricité" },
-  { tag: "LiColonne_Variable_resume_conclusion_ernt",            label: "ERP / ESRIS" },
-  { tag: "LiColonne_Variable_resume_conclusion_Assainissement",  label: "Assainissement" },
-  { tag: "LiColonne_Variable_resume_conclusion_PTZ",             label: "PTZ" },
-  { tag: "LiColonne_Variable_resume_conclusion_Piscine",         label: "Piscine" },
-  { tag: "LiColonne_Variable_resume_conclusion_SRU",             label: "SRU" },
-  { tag: "LiColonne_Variable_resume_conclusion_RADON",           label: "Radon" },
-  { tag: "LiColonne_Variable_resume_conclusion_Ascenseur",       label: "Ascenseur" },
-  { tag: "LiColonne_Variable_resume_conclusion_Robien",          label: "Robien" },
-  { tag: "LiColonne_Variable_resume_conclusion_EDL",             label: "État des lieux" },
-  { tag: "LiColonne_Variable_resume_conclusion_Incendie",        label: "Incendie" },
-  { tag: "LiColonne_Variable_resume_conclusion_Handicape",       label: "Accessibilité handicapé" },
-  { tag: "LiColonne_Variable_resume_conclusion_Infiltrometrie",  label: "Infiltrométrie" },
-  { tag: "LiColonne_Variable_resume_conclusion_Pb_eau",          label: "Plomb dans l'eau" }
-];
-
-
 // Helpers DOM
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -396,33 +370,12 @@ function getXmlValue(xmlDoc, tagName) {
 function decodeMissions(bits) {
   if (!bits) return [];
   const result = [];
-  for (let i = 0; i < bits.length && i < .length; i++) {
+  for (let i = 0; i < bits.length && i < MISSION_TYPES.length; i++) {
     if (bits[i] === "1") {
-      result.push([i]);
+      result.push(MISSION_TYPES[i]);
     }
   }
   return result;
-}
-// Analyse du texte DPE pour extraire conso, classes et N° ADEME
-function parseDpeInfo(dpeText) {
-  if (!dpeText) return null;
-  const txt = dpeText.replace(/\s+/g, " ");
-
-  const consoMatch = txt.match(/Consommation.*?:\s*([0-9]+)\s*kWh/i);
-  const classeEnerMatch = txt.match(/Consommation.*?\(Classe\s*([A-G])\)/i);
-
-  const co2Match = txt.match(/émissions.*?:\s*([0-9]+)\s*kg/i);
-  const classeCo2Match = txt.match(/émissions.*?\(Classe\s*([A-G])\)/i);
-
-  const ademeMatch = txt.match(/N[°º]\s*ADEME\s*:\s*([A-Z0-9]+)/i);
-
-  return {
-    conso: consoMatch ? parseInt(consoMatch[1], 10) : null,
-    classeEner: classeEnerMatch ? classeEnerMatch[1].toUpperCase() : null,
-    co2: co2Match ? parseInt(co2Match[1], 10) : null,
-    classeCO2: classeCo2Match ? classeCo2Match[1].toUpperCase() : null,
-    ademe: ademeMatch ? ademeMatch[1] : null
-  };
 }
 
 // --------------------------------------------------------
@@ -435,7 +388,7 @@ function buildConclusionsList(rawText, missionsEffectuees) {
   const setEffectuees = new Set(missionsEffectuees || []);
 
   const found = [];
-  .forEach((label) => {
+  MISSION_TYPES.forEach((label) => {
     const idx = txt.indexOf(label);
     if (idx !== -1) {
       found.push({ label, idx });
@@ -532,120 +485,26 @@ async function processMissionFolder(folderHandle, folderName) {
     numCertif: getXmlValue(bienXml, "LiColonne_Gen_num_certif")
   };
 
-  // -------------------------------------------------
-  // 1) Conclusions structurées : Table_Z_Conclusions.xml
-  // -------------------------------------------------
-  mission.conclusionsByDiag = {};
-  let allConclusionsText = "";
-
-  const zConclXml = await readXmlFile(xmlDir, "Table_Z_Conclusions.xml");
-  if (zConclXml) {
-    for (const field of CONCLUSION_FIELDS) {
-      const txt = getXmlValue(zConclXml, field.tag);
-      if (txt) {
-        mission.conclusionsByDiag[field.label] = txt;
-        allConclusionsText += " " + txt;
-      }
-    }
-
-    // DPE : extraction des valeurs pour filtres / lien ADEME
-    const dpeText = getXmlValue(zConclXml, "LiColonne_Variable_resume_conclusion_dpe");
-    if (dpeText) {
-      if (!mission.conclusionsByDiag["DPE"]) {
-        mission.conclusionsByDiag["DPE"] = dpeText;
-      }
-      mission.dpe = {
-        energieUrl: null,
-        co2Url: null,
-        ...parseDpeInfo(dpeText)
-      };
-    } else {
-      mission.dpe = {
-        energieUrl: null,
-        co2Url: null,
-        conso: null,
-        classeEner: null,
-        co2: null,
-        classeCO2: null,
-        ademe: null
-      };
-    }
-  } else {
-    // Fallback : pas de Table_Z_Conclusions → rien de structuré
-    mission.dpe = {
-      energieUrl: null,
-      co2Url: null,
-      conso: null,
-      classeEner: null,
-      co2: null,
-      classeCO2: null,
-      ademe: null
-    };
+  // Conclusion (bloc complet)
+  const conclXml = await readXmlFile(xmlDir, "Table_General_Bien_conclusions.xml");
+  let conclusionRaw = "";
+  if (conclXml) {
+    const candidates = [
+      conclXml.querySelector("Conclusion"),
+      conclXml.querySelector("LiColonne_Conclusion"),
+      conclXml.querySelector("Texte"),
+      conclXml.documentElement
+    ].filter(Boolean);
+    const node = candidates[0];
+    conclusionRaw = node ? (node.textContent || "").trim() : "";
   }
 
-  mission.conclusionRaw = allConclusionsText.trim();
-  mission.conclusion = mission.conclusionRaw;
-
-  // ----------------------------------
-  // 2) Photo présentation & étiquettes DPE (fichiers fixes)
-  // ----------------------------------
-  mission.photoUrl = null;
-  mission.photoPath = null;
-
-  // Photo principale : /photos/presentation.jpg
-  try {
-    const photoFile = await getFileFromRelativePath(folderHandle, "photos/presentation.jpg");
-    const blobUrl = URL.createObjectURL(photoFile);
-    mission.photoUrl = blobUrl;
-    mission.photoPath = "photos/presentation.jpg";
-  } catch (err) {
-    // pas de photo => laissé à null
-  }
-
-  // Initialisation dpe si pas déjà fait plus haut
-  if (!mission.dpe) {
-    mission.dpe = {
-      energieUrl: null,
-      co2Url: null,
-      conso: null,
-      classeEner: null,
-      co2: null,
-      classeCO2: null,
-      ademe: null
-    };
-  }
-
-  // Étiquettes DPE uniquement si DPE fait partie des missions effectuées
-  if (mission.mission.missionsEffectuees.includes("DPE")) {
-    try {
-      const fileE = await getFileFromRelativePath(
-        folderHandle,
-        "images/DPE_2020_Etiquette_Energie.jpg"
-      );
-      mission.dpe.energieUrl = URL.createObjectURL(fileE);
-    } catch (err) {
-      // Pas d'étiquette énergie
-    }
-
-    try {
-      const fileC = await getFileFromRelativePath(
-        folderHandle,
-        "images/DPE_2020_Etiquette_CO2.jpg"
-      );
-      mission.dpe.co2Url = URL.createObjectURL(fileC);
-    } catch (err) {
-      // Pas d'étiquette CO2
-    }
-  }
-
-  // Champs normalisés pour filtre texte
-  mission._norm = {
-    conclusion: allConclusionsText.toLowerCase()
-  };
-
-  return mission;
-}
-
+  mission.conclusion = conclusionRaw;
+  mission.conclusionRaw = conclusionRaw;
+  mission.conclusionsList = buildConclusionsList(
+    conclusionRaw,
+    mission.mission.missionsEffectuees
+  );
 
   // ----------------------------------
   // Photo présentation & DPE (fichiers fixes)
@@ -822,57 +681,6 @@ function applyFilters() {
     if (conclText) {
       const c = m._norm?.conclusion ?? (m.conclusion || "").toLowerCase();
       if (!c.includes(conclText)) return false;
-    }
-  // Filtres DPE (optionnels si les champs existent dans le HTML)
-  const dpeClassSelect = $("#filterDpeClass");
-  const dpeCo2ClassSelect = $("#filterDpeCo2Class");
-  const dpeConsoMinInput = $("#filterDpeConsoMin");
-  const dpeConsoMaxInput = $("#filterDpeConsoMax");
-  const dpeCo2MinInput = $("#filterDpeCo2Min");
-  const dpeCo2MaxInput = $("#filterDpeCo2Max");
-
-  const dpeClass = dpeClassSelect ? dpeClassSelect.value : "";
-  const dpeCo2Class = dpeCo2ClassSelect ? dpeCo2ClassSelect.value : "";
-
-  const consoMin = dpeConsoMinInput && dpeConsoMinInput.value
-    ? parseFloat(dpeConsoMinInput.value)
-    : null;
-  const consoMax = dpeConsoMaxInput && dpeConsoMaxInput.value
-    ? parseFloat(dpeConsoMaxInput.value)
-    : null;
-  const co2Min = dpeCo2MinInput && dpeCo2MinInput.value
-    ? parseFloat(dpeCo2MinInput.value)
-    : null;
-  const co2Max = dpeCo2MaxInput && dpeCo2MaxInput.value
-    ? parseFloat(dpeCo2MaxInput.value)
-    : null;
-    // Filtres DPE par lettre / seuils
-    if (dpeClass) {
-      const c = m.dpe && m.dpe.classeEner;
-      if (!c || c !== dpeClass) return false;
-    }
-
-    if (dpeCo2Class) {
-      const c2 = m.dpe && m.dpe.classeCO2;
-      if (!c2 || c2 !== dpeCo2Class) return false;
-    }
-
-    if (consoMin != null) {
-      const v = m.dpe && m.dpe.conso;
-      if (v == null || v < consoMin) return false;
-    }
-    if (consoMax != null) {
-      const v = m.dpe && m.dpe.conso;
-      if (v == null || v > consoMax) return false;
-    }
-
-    if (co2Min != null) {
-      const v = m.dpe && m.dpe.co2;
-      if (v == null || v < co2Min) return false;
-    }
-    if (co2Max != null) {
-      const v = m.dpe && m.dpe.co2;
-      if (v == null || v > co2Max) return false;
     }
 
     return true;
@@ -1118,125 +926,165 @@ function openFicheModal(mission) {
     photoContainer.appendChild(span);
   }
 
-    // Bloc 2 : DPE (visuels + valeurs + lien ADEME)
+  // Bloc 2 : DPE
   const dpeContainer = $("#ficheDPEContainer");
   dpeContainer.innerHTML = "";
-
   const hasE = mission.dpe && mission.dpe.energieUrl;
   const hasC = mission.dpe && mission.dpe.co2Url;
-  const hasData =
-    mission.dpe &&
-    (mission.dpe.conso != null ||
-      mission.dpe.classeEner ||
-      mission.dpe.co2 != null ||
-      mission.dpe.classeCO2 ||
-      mission.dpe.ademe);
 
-  if (!hasE && !hasC && !hasData) {
-    const span = document.createElement("div");
-    span.className = "fiche-dpe-placeholder";
-    span.textContent = "DPE non réalisé ou données DPE indisponibles.";
-    dpeContainer.appendChild(span);
-  } else {
-    // Lien ADEME si dispo
-    if (mission.dpe.ademe) {
-      const link = document.createElement("a");
-      link.href =
-        "https://observatoire-dpe-audit.ademe.fr/afficher-dpe/" +
-        mission.dpe.ademe;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = "Voir le DPE sur le site officiel ADEME";
-      link.className = "dpe-link";
-      dpeContainer.appendChild(link);
-    }
-
-    // Valeurs DPE
-    if (hasData) {
-      const info = document.createElement("div");
-      info.className = "dpe-info";
-
-      const lines = [];
-      if (mission.dpe.classeEner) {
-        lines.push("Classe Énergie : " + mission.dpe.classeEner);
-      }
-      if (mission.dpe.conso != null) {
-        lines.push("Consommation : " + mission.dpe.conso + " kWh/m²/an");
-      }
-      if (mission.dpe.classeCO2) {
-        lines.push("Classe CO₂ : " + mission.dpe.classeCO2);
-      }
-      if (mission.dpe.co2 != null) {
-        lines.push("Émissions : " + mission.dpe.co2 + " kgCO₂/m²/an");
-      }
-
-      info.textContent = lines.join(" • ");
-      dpeContainer.appendChild(info);
-    }
-
-    // Étiquettes DPE
-    const visuels = document.createElement("div");
-    visuels.className = "dpe-visuels";
-
+  if (hasE || hasC) {
     if (hasE) {
       const imgE = document.createElement("img");
       imgE.src = mission.dpe.energieUrl;
       imgE.alt = "Étiquette énergie DPE";
-      visuels.appendChild(imgE);
+      dpeContainer.appendChild(imgE);
     }
     if (hasC) {
       const imgC = document.createElement("img");
       imgC.src = mission.dpe.co2Url;
-      imgC.alt = "Étiquette CO₂ DPE";
-      visuels.appendChild(imgC);
+      imgC.alt = "Étiquette CO2 DPE";
+      dpeContainer.appendChild(imgC);
     }
-
-    if (hasE || hasC) {
-      dpeContainer.appendChild(visuels);
-    }
+  } else {
+    const span = document.createElement("div");
+    span.className = "fiche-dpe-placeholder";
+    span.textContent = "DPE non réalisé ou étiquettes introuvables.";
+    dpeContainer.appendChild(span);
   }
 
-
-   // Bloc 3 : cartes diagnostics (tous ceux non vides)
+  // Bloc 3 : cartes diagnostics
   const diagsContainer = $("#ficheDiagsContainer");
   diagsContainer.innerHTML = "";
 
-  const entries = Object.entries(mission.conclusionsByDiag || {});
-  if (!entries.length) {
-    const span = document.createElement("div");
-    span.textContent = "Aucune conclusion structurée trouvée pour cette mission.";
-    diagsContainer.appendChild(span);
-  } else {
-    entries.forEach(([label, text]) => {
-      const card = document.createElement("div");
-      card.className = "diag-card";
+  const eff = mission.mission.missionsEffectuees || [];
+  const conclList = mission.conclusionsList || [];
 
-      const header = document.createElement("div");
-      header.className = "diag-header";
+  eff.forEach((type, idx) => {
+    const match = conclList.find((c) => c.type === type);
 
-      const headerLeft = document.createElement("div");
-      headerLeft.className = "diag-header-left";
+    const card = document.createElement("div");
+    card.className = "diag-card";
 
-      const titleSpan = document.createElement("span");
-      titleSpan.className = "diag-title";
-      titleSpan.textContent = label;
+    const header = document.createElement("div");
+    header.className = "diag-header";
 
-      headerLeft.appendChild(titleSpan);
-      header.appendChild(headerLeft);
+    const headerLeft = document.createElement("div");
+    headerLeft.className = "diag-header-left";
 
-      const body = document.createElement("div");
-      body.className = "diag-body";
-      body.textContent = text;
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "diag-title";
+    titleSpan.textContent = type;
 
-      card.appendChild(header);
-      card.appendChild(body);
+    const badge = document.createElement("span");
+    badge.className = "diag-badge"; // neutre (pas de couleur de statut)
+    badge.textContent = match ? "Conclusion disponible" : "Conclusion non trouvée";
 
-      diagsContainer.appendChild(card);
+    headerLeft.appendChild(titleSpan);
+    headerLeft.appendChild(badge);
+
+    const toggle = document.createElement("span");
+    toggle.className = "diag-toggle";
+    toggle.textContent = "Afficher";
+
+    header.appendChild(headerLeft);
+    header.appendChild(toggle);
+
+    const body = document.createElement("div");
+    body.className = "diag-body";
+    body.textContent =
+      match && match.text
+        ? match.text
+        : "Aucune conclusion spécifique trouvée pour ce diagnostic dans le bloc de synthèse.";
+
+    header.addEventListener("click", () => {
+      const isOpen = card.classList.toggle("open");
+      toggle.textContent = isOpen ? "Masquer" : "Afficher";
     });
+
+    card.appendChild(header);
+    card.appendChild(body);
+
+    // Première carte ouverte par défaut
+    if (idx === 0) {
+      card.classList.add("open");
+      toggle.textContent = "Masquer";
+    }
+
+    diagsContainer.appendChild(card);
+  });
+
+  // Bloc 4 : récapitulatif global (tableau)
+  const summaryContainer = $("#ficheSummaryContainer");
+  summaryContainer.innerHTML = "";
+
+  if (eff.length) {
+    const table = document.createElement("table");
+    table.innerHTML =
+      "<thead><tr>" +
+      "<th>Type de diagnostic</th>" +
+      "<th>Résumé de conclusion</th>" +
+      "</tr></thead>";
+
+    const tbody = document.createElement("tbody");
+    eff.forEach((type) => {
+      const tr = document.createElement("tr");
+      const tdType = document.createElement("td");
+      const tdRes = document.createElement("td");
+
+      tdType.textContent = type;
+
+      const match = conclList.find((c) => c.type === type);
+      let txt = match && match.text ? match.text : "";
+      if (!txt && mission.conclusionRaw) {
+        txt = mission.conclusionRaw;
+      }
+      if (txt.length > 160) {
+        txt = txt.slice(0, 160) + "…";
+      }
+      tdRes.textContent = txt || "—";
+
+      tr.appendChild(tdType);
+      tr.appendChild(tdRes);
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    summaryContainer.appendChild(table);
+  } else {
+    summaryContainer.textContent = "Aucun diagnostic réalisé pour cette mission.";
   }
 
-  // (➜ Bloc 4 récapitulatif global supprimé, on ne fait plus rien ici)
+  overlay.classList.remove("hidden");
+}
 
+function buildBlocTexte(obj, mapping) {
+  if (!obj) return "";
+  const lines = [];
+  mapping.forEach(([label, key]) => {
+    const val = obj[key];
+    if (val) {
+      lines.push(`${label} : ${val}`);
+    }
+  });
+  return lines.join("\n");
+}
+
+function closeConclusionModal() {
+  $("#modalOverlay").classList.add("hidden");
+  currentFicheMission = null;
+}
+
+function openPhotoModal(url) {
+  const overlay = $("#photoOverlay");
+  const img = $("#modalPhoto");
+  img.src = url;
+  overlay.classList.remove("hidden");
+}
+
+function closePhotoModal() {
+  $("#photoOverlay").classList.add("hidden");
+  $("#modalPhoto").src = "";
+}
 
 // ----------------------------------------
 // Exports & JSON
