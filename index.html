@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Missions – Synthèse Liciel</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div>
+        <h1>Dashboard Missions – Synthèse Liciel</h1>
+        <p class="subtitle">
+          Scan des dossiers LICIEL, fiches missions détaillées, filtres avancés, export des numéros et sauvegarde JSON.
+        </p>
+      </div>
+      <div class="badge">
+        <span class="dot"></span> Pro · Offline XML
+      </div>
+    </header>
+
+    <!-- 1. Sélection dossier racine -->
+    <section class="card">
+      <h2>1. Sélection du dossier racine</h2>
+      <div class="flex-row wrap">
+        <button id="btnPickRoot" class="btn primary">📁 Choisir le dossier racine</button>
+        <span id="rootInfo" class="info-text">Aucun dossier sélectionné.</span>
+      </div>
+      <p class="hint">
+        Utilise Chrome / Edge récents. Idéalement en contexte sécurisé (https:// ou http://localhost) pour la File System Access API.
+      </p>
+    </section>
+
+    <!-- 2. Paramètres de scan -->
+    <section class="card">
+      <h2>2. Paramètres de scan</h2>
+
+      <div class="scan-modes">
+        <label>
+          <input type="radio" name="scanMode" value="all" checked />
+          Scanner tous les sous-dossiers
+        </label>
+        <label>
+          <input type="radio" name="scanMode" value="prefix" />
+          Filtrer par préfixe (1 à 9 chiffres)
+        </label>
+        <label>
+          <input type="radio" name="scanMode" value="list" />
+          Liste de numéros de dossiers (coller depuis Excel)
+        </label>
+      </div>
+
+      <div id="prefixBlock" class="scan-block hidden">
+        <label for="inputPrefix">Préfixe de dossier :</label>
+        <input id="inputPrefix" type="text" maxlength="9" placeholder="Ex : 230145" />
+      </div>
+
+      <div id="listBlock" class="scan-block hidden">
+        <label for="inputDossierList">Liste de numéros de dossiers :</label>
+        <textarea id="inputDossierList" rows="4"
+          placeholder="Coller ici les numéros de dossiers (un par ligne, ou séparés par des virgules / espaces)."></textarea>
+      </div>
+
+      <div class="scan-actions flex-row wrap">
+        <button id="btnScan" class="btn success" disabled>🔍 Lancer le scan</button>
+        <div class="progress-wrapper">
+          <div id="progressBar" class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+          <div id="progressText" class="progress-text">En attente…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Filtres (masqués avant le scan / import JSON) -->
+    <section id="filtersSection" class="card hidden-block">
+      <h2>3. Filtres</h2>
+      <div class="filters-grid">
+        <div>
+          <label for="filterDO">Donneur d'ordre</label>
+          <select id="filterDO" multiple></select>
+          <small>Ctrl/Cmd + clic pour multi-sélection.</small>
+        </div>
+        <div>
+          <label for="filterProp">Propriétaire</label>
+          <select id="filterProp" multiple></select>
+          <small>Ctrl/Cmd + clic pour multi-sélection.</small>
+        </div>
+        <div>
+          <label for="filterOp">Diagnostiqueur</label>
+          <select id="filterOp" multiple></select>
+          <small>Nom Prénom / Société.</small>
+        </div>
+        <div>
+          <label for="filterType">Type de mission</label>
+          <select id="filterType" multiple></select>
+          <small>Diagnostics réellement effectués.</small>
+        </div>
+        <div>
+          <label for="filterConclusion">Conclusion (texte)</label>
+          <input id="filterConclusion" type="text" placeholder="Recherche plein texte dans les conclusions…" />
+          <small>Filtre appliqué en temps réel.</small>
+        </div>
+      </div>
+      <div class="flex-row filter-actions">
+        <div class="flex-row">
+          <button id="btnApplyFilters" class="btn">Appliquer les filtres</button>
+          <button id="btnResetFilters" class="btn secondary">Réinitialiser</button>
+        </div>
+        <span id="statsText" class="info-text"></span>
+      </div>
+    </section>
+
+    <!-- 4. Export & sauvegarde -->
+    <section class="card">
+      <h2>4. Export & sauvegarde</h2>
+      <div class="flex-row wrap">
+        <button id="btnExportCSV" class="btn" disabled>⬇️ Exporter numéros (CSV)</button>
+        <button id="btnCopyClipboard" class="btn" disabled>📋 Copier numéros (presse-papier)</button>
+        <button id="btnExportJSON" class="btn secondary" disabled>💾 Exporter base complète (JSON)</button>
+        <button id="btnImportJSON" class="btn secondary">📂 Charger base JSON existante</button>
+        <input id="jsonFileInput" type="file" accept="application/json" class="hidden" />
+      </div>
+      <p class="hint">
+        L’export JSON permet de réutiliser la base sans rescanner les dossiers (partageable entre collègues).
+      </p>
+    </section>
+
+    <!-- 5. Résultats -->
+    <section class="card">
+      <h2>5. Résultats</h2>
+      <div id="tableWrapper" class="table-wrapper">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>N° dossier</th>
+              <th>Donneur d'ordre</th>
+              <th>Propriétaire</th>
+              <th>Adresse immeuble</th>
+              <th>Type / nature bien</th>
+              <th>Dates</th>
+              <th>Diagnostiqueur</th>
+              <th>Missions effectuées</th>
+              <th>Fiche mission</th>
+              <th>Photo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Lignes générées dynamiquement -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Modale fiche mission détaillée -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal modal-fiche">
+      <div class="modal-header">
+        <div>
+          <h3 id="ficheTitle">Fiche mission</h3>
+          <p id="ficheSubtitle" class="fiche-subtitle"></p>
+        </div>
+        <div class="modal-header-actions">
+          <button id="btnExportFiche" class="btn small secondary">⬇️ Exporter fiche (JSON)</button>
+          <button id="btnCloseModal" class="btn small">✖</button>
+        </div>
+      </div>
+      <div class="modal-content fiche-content">
+        <!-- 1. Admin -->
+        <section class="fiche-section">
+          <h4>1. Informations administratives</h4>
+          <div class="fiche-grid">
+            <div class="fiche-block">
+              <h5>1.1 Donneur d’ordre</h5>
+              <div id="ficheDO" class="fiche-text"></div>
+            </div>
+            <div class="fiche-block">
+              <h5>1.2 Propriétaire</h5>
+              <div id="ficheProp" class="fiche-text"></div>
+            </div>
+          </div>
+          <div class="fiche-grid">
+            <div class="fiche-block">
+              <h5>1.3 Immeuble</h5>
+              <div id="ficheImmeuble" class="fiche-text"></div>
+            </div>
+            <div class="fiche-block">
+              <h5>1.4 Mission</h5>
+              <div id="ficheMission" class="fiche-text"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Visuels -->
+        <section class="fiche-section">
+          <h4>2. Documentation visuelle</h4>
+          <div class="fiche-grid">
+            <div class="fiche-block">
+              <h5>2.1 Photo de présentation</h5>
+              <div id="fichePhotoContainer" class="fiche-photo-wrapper">
+                <div class="fiche-photo-placeholder">Aucune photo trouvée</div>
+              </div>
+            </div>
+            <div class="fiche-block">
+              <h5>2.2 Étiquettes DPE</h5>
+              <div id="ficheDPEContainer" class="fiche-dpe-wrapper">
+                <div class="fiche-dpe-placeholder">DPE non réalisé ou étiquettes non trouvées</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Diagnostiques -->
+        <section class="fiche-section">
+          <h4>3. Synthèse par diagnostic</h4>
+          <div id="ficheDiagsContainer" class="fiche-diags">
+            <!-- Cartes diagnostics générées en JS -->
+          </div>
+        </section>
+
+        <!-- 4. Récap global -->
+        <section class="fiche-section">
+          <h4>4. Récapitulatif global</h4>
+          <div id="ficheSummaryContainer" class="fiche-summary">
+            <!-- Tableau recap généré en JS -->
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale photo plein écran -->
+  <div id="photoOverlay" class="modal-overlay hidden">
+    <div class="modal modal-photo">
+      <div class="modal-header">
+        <h3>Photo de présentation</h3>
+        <button id="btnClosePhoto" class="btn small">✖</button>
+      </div>
+      <div class="modal-content photo-content">
+        <img id="modalPhoto" alt="Photo de présentation" />
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
