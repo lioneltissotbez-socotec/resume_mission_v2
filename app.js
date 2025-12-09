@@ -191,9 +191,9 @@ async function onScan() {
   } catch (err) {
     console.error(err);
     alert("Erreur lors du scan.");
+  } finally {
+    setScanningState(false);
   }
-
-  setScanningState(false);
 }
 
 function setScanningState(state) {
